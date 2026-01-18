@@ -249,11 +249,16 @@ if page == "📥 Coleta Manual":
 
     st.info("""
     **💡 Como funciona:**
-    1. Clique em **"🚀 Iniciar Chromium"** para iniciar o navegador
-    2. O Chromium abrirá automaticamente no X (x.com)
-    3. **IMPORTANTE**: Se não estiver logado, você precisa fazer login manualmente no X
-    4. Depois de logado, volte aqui e clique em **"Conectar ao Chromium"**
+    1. Clique em **"🚀 Iniciar Chromium"** para iniciar o navegador em modo headless
+    2. O Chromium iniciará em background (sem interface visível)
+    3. **PARA FAZER LOGIN NO X (primeira vez):**
+       - Use VNC ou outra ferramenta de acesso remoto ao display :99
+       - Ou: Configure cookies/sessão do X manualmente
+       - Ou: Use o Chromium já logado copiando o perfil de outro lugar
+    4. Depois que estiver logado, clique em **"Conectar ao Chromium"**
     5. Agora você pode iniciar a coleta de dados!
+
+    **⚠️ Nota:** O login só precisa ser feito uma vez. Os cookies ficam salvos em `/app/browser_data/chrome-profile`
     """)
 
     # Botões de controle do Chrome
@@ -352,6 +357,35 @@ if page == "📥 Coleta Manual":
             logs = get_chrome_log()
             with st.expander("📋 Logs do Chromium", expanded=True):
                 st.code(logs, language="text")
+
+    # Informação adicional sobre login
+    with st.expander("ℹ️ Como fazer login no X (instruções detalhadas)"):
+        st.markdown("""
+        ### Opção 1: Usar VNC (Recomendado para primeira vez)
+
+        1. Instale um cliente VNC no seu computador (como RealVNC Viewer)
+        2. Conecte-se ao servidor no display :99
+        3. Uma janela com o Chromium aparecerá
+        4. Navegue para https://x.com e faça login normalmente
+        5. Feche o VNC - o Chromium continuará rodando em background
+
+        ### Opção 2: Copiar perfil existente
+
+        Se você já tem um Chromium/Chrome logado em outro lugar:
+
+        1. Copie a pasta de perfil do Chrome
+        2. Cole em `/app/browser_data/chrome-profile`
+        3. Reinicie o Chromium pelo botão acima
+
+        ### Opção 3: Configuração manual de cookies
+
+        Para usuários avançados:
+        1. Exporte cookies do X.com de outro navegador
+        2. Importe-os no perfil em `/app/browser_data/chrome-profile`
+
+        **⚠️ IMPORTANTE:** Após o login, os cookies ficam salvos permanentemente.
+        Você só precisa fazer isso uma vez!
+        """)
 
     st.markdown("---")
     

@@ -71,7 +71,7 @@ fi
     --disable-web-security \
     --disable-features=IsolateOrigins,site-per-process \
     --window-size=1920,1080 \
-    "https://x.com" > /tmp/chrome.log 2>&1 &
+    "about:blank" > /tmp/chrome.log 2>&1 &
 
 CHROME_PID=$!
 
