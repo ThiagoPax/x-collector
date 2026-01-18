@@ -1,63 +1,98 @@
 #!/bin/bash
-# Inicia o Chrome em modo debug com CÓPIA do perfil do usuário
+# Inicia o Chromium em modo debug para Linux
+# Versão adaptada para funcionar em ambiente Docker/Linux
 
-echo "🚀 Preparando Chrome em modo debug..."
+set -e
+
+echo "🚀 Preparando Chromium em modo debug..."
 echo ""
 
-# Fechar Chrome se estiver aberto
-pkill -x "Google Chrome" 2>/dev/null
-sleep 2
+# Encontrar executável do Chromium do Playwright
+CHROME_EXEC="/root/.cache/ms-playwright/chromium-1194/chrome-linux/chrome"
 
-# Diretórios
-CHROME_PROFILE="$HOME/Library/Application Support/Google/Chrome"
-DEBUG_PROFILE="$HOME/.x-collector-chrome-profile"
+# Fallback: tentar encontrar automaticamente
+if [ ! -f "$CHROME_EXEC" ]; then
+    echo "🔍 Procurando Chromium do Playwright..."
+    CHROME_EXEC=$(find /root/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | grep "chrome-linux/chrome" | head -1)
+fi
 
-# Verificar se perfil original existe
-if [ ! -d "$CHROME_PROFILE" ]; then
-    echo "❌ Perfil do Chrome não encontrado em: $CHROME_PROFILE"
+if [ ! -f "$CHROME_EXEC" ]; then
+    echo "❌ Chromium não encontrado!"
+    echo "Tentando instalar com Playwright..."
+    playwright install chromium
+    CHROME_EXEC=$(find /root/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | grep "chrome-linux/chrome" | head -1)
+fi
+
+if [ ! -f "$CHROME_EXEC" ]; then
+    echo "❌ Erro: Não foi possível encontrar ou instalar o Chromium"
     exit 1
 fi
 
-# Criar/atualizar cópia do perfil
-echo "📂 Copiando perfil do Chrome (pode demorar alguns segundos)..."
-
-# Remover cópia antiga se existir
-rm -rf "$DEBUG_PROFILE"
-
-# Criar diretório
-mkdir -p "$DEBUG_PROFILE"
-
-# Copiar apenas arquivos essenciais (cookies, login, etc) - mais rápido
-cp -R "$CHROME_PROFILE/Default" "$DEBUG_PROFILE/" 2>/dev/null || true
-cp "$CHROME_PROFILE/Local State" "$DEBUG_PROFILE/" 2>/dev/null || true
-
-echo "✅ Perfil copiado!"
+echo "✅ Chromium encontrado em: $CHROME_EXEC"
 echo ""
 
-# Iniciar Chrome com perfil copiado e debug port
-echo "🌐 Iniciando Chrome..."
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+# Fechar Chromium se estiver aberto
+echo "🛑 Fechando instâncias anteriores do Chromium..."
+pkill -f "chrome.*--remote-debugging-port=9222" 2>/dev/null || true
+sleep 2
+
+# Diretório de perfil
+PROFILE_DIR="/app/browser_data/chrome-profile"
+
+# Criar diretório se não existir
+mkdir -p "$PROFILE_DIR"
+
+echo "✅ Perfil criado/verificado em: $PROFILE_DIR"
+echo ""
+
+# Iniciar Chromium com debug port
+echo "🌐 Iniciando Chromium em modo debug..."
+
+# Usar display virtual se necessário (para ambientes headless)
+export DISPLAY=:99
+
+# Tentar iniciar Xvfb se não estiver rodando
+if ! pgrep -x "Xvfb" > /dev/null; then
+    echo "🖥️  Iniciando display virtual (Xvfb)..."
+    Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+    sleep 2
+fi
+
+# Iniciar Chromium
+"$CHROME_EXEC" \
     --remote-debugging-port=9222 \
-    --user-data-dir="$DEBUG_PROFILE" \
+    --user-data-dir="$PROFILE_DIR" \
     --no-first-run \
     --no-default-browser-check \
-    "https://x.com" &
+    --disable-dev-shm-usage \
+    --disable-gpu \
+    --no-sandbox \
+    --disable-setuid-sandbox \
+    --disable-web-security \
+    --disable-features=IsolateOrigins,site-per-process \
+    --window-size=1920,1080 \
+    "https://x.com" > /tmp/chrome.log 2>&1 &
+
+CHROME_PID=$!
 
 sleep 3
 
 # Verificar se a porta está aberta
 if lsof -i :9222 > /dev/null 2>&1; then
     echo ""
-    echo "✅ Chrome iniciado com sucesso na porta 9222!"
+    echo "✅ Chromium iniciado com sucesso na porta 9222!"
+    echo "   PID: $CHROME_PID"
     echo ""
-    echo "📋 Agora:"
-    echo "   1. Verifique se você está logado no X na janela do Chrome"
-    echo "   2. Em OUTRO terminal, rode: ./venv/bin/python -m streamlit run app/main.py"
-    echo "   3. No Streamlit, clique 'Conectar ao Chrome' e 'Iniciar Coleta'"
+    echo "📋 Chromium está rodando em background"
+    echo "   Acesse a interface web para conectar e coletar dados"
     echo ""
-    echo "⚠️  Mantenha esta janela aberta durante a coleta."
+    echo "⚠️  Logs em: /tmp/chrome.log"
+    exit 0
 else
     echo ""
-    echo "❌ Erro: Chrome não iniciou corretamente."
-    echo "   Tente fechar manualmente todas as janelas do Chrome e rodar novamente."
+    echo "❌ Erro: Chromium não iniciou corretamente."
+    echo ""
+    echo "📋 Verifique os logs em /tmp/chrome.log"
+    cat /tmp/chrome.log
+    exit 1
 fi

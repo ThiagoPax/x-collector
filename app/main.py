@@ -20,6 +20,12 @@ from core import (
     SearchType,
     URLBuilder,
     build_example_queries,
+    is_chrome_running,
+    get_chrome_status,
+    start_chrome,
+    stop_chrome,
+    restart_chrome,
+    get_chrome_log,
 )
 from exporters import export_to_docx, export_to_json, export_to_csv
 from scheduler import start_scheduler, get_runner
@@ -229,27 +235,77 @@ if page == "📥 Coleta Manual":
     )
     
     st.markdown("---")
-    
-    # Botões de ação - Login
-    st.subheader("🔐 Autenticação no X")
-    
-    st.warning("""
-    **⚡ IMPORTANTE - Siga estes passos:**
-    
-    1. **Feche TODAS as janelas do Chrome** (Cmd+Q no Mac)
-    2. Abra o **Terminal** e execute os comandos abaixo
-    3. Faça login no X no Chrome que abrir (se necessário)
-    4. Volte aqui e clique em **"Conectar ao Chrome"**
+
+    # Gerenciamento do Chrome
+    st.subheader("🌐 Gerenciamento do Chromium")
+
+    # Status do Chrome
+    chrome_running, chrome_status = get_chrome_status()
+
+    if chrome_running:
+        st.success(f"✅ Chromium está rodando - {chrome_status}")
+    else:
+        st.warning(f"⚠️ Chromium não está rodando - {chrome_status}")
+
+    st.info("""
+    **💡 Como funciona:**
+    1. Clique em **"🚀 Iniciar Chromium"** para iniciar o navegador
+    2. O Chromium abrirá automaticamente no X (x.com)
+    3. **IMPORTANTE**: Se não estiver logado, você precisa fazer login manualmente no X
+    4. Depois de logado, volte aqui e clique em **"Conectar ao Chromium"**
+    5. Agora você pode iniciar a coleta de dados!
     """)
-    
-    st.code("""cd ~/Desktop/x-collector
-./start_chrome.sh""", language="bash")
-    
-    col1, col2 = st.columns(2)
-    
+
+    # Botões de controle do Chrome
+    col1, col2, col3, col4 = st.columns(4)
+
     with col1:
-        if st.button("🔗 Conectar ao Chrome", use_container_width=True, type="primary"):
-            with st.spinner("Conectando ao Chrome na porta 9222..."):
+        if st.button("🚀 Iniciar Chromium", use_container_width=True, type="primary", disabled=chrome_running):
+            with st.spinner("Iniciando Chromium..."):
+                success, msg = start_chrome()
+                if success:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
+                    # Mostrar log se houver erro
+                    with st.expander("📋 Ver log do Chromium"):
+                        st.code(get_chrome_log(), language="text")
+
+    with col2:
+        if st.button("🔄 Reiniciar Chromium", use_container_width=True, disabled=not chrome_running):
+            with st.spinner("Reiniciando Chromium..."):
+                success, msg = restart_chrome()
+                if success:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+    with col3:
+        if st.button("🛑 Parar Chromium", use_container_width=True, disabled=not chrome_running):
+            with st.spinner("Parando Chromium..."):
+                success, msg = stop_chrome()
+                if success:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+    with col4:
+        if st.button("🔍 Atualizar Status", use_container_width=True):
+            st.rerun()
+
+    st.markdown("---")
+
+    # Conexão e teste
+    st.subheader("🔐 Conectar ao Chromium")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("🔗 Conectar ao Chromium", use_container_width=True, type="primary", disabled=not chrome_running):
+            with st.spinner("Conectando ao Chromium..."):
                 async def test_connection():
                     from playwright.async_api import async_playwright
                     pw = await async_playwright().start()
@@ -264,35 +320,39 @@ if page == "📥 Coleta Manual":
                             # Verificar se está no X
                             url = page.url
                             if "x.com" in url or "twitter.com" in url:
-                                return True, "Conectado e no X!"
-                            return True, f"Conectado! (URL atual: {url})"
-                        return True, "Conectado!"
+                                # Tentar verificar se está logado
+                                try:
+                                    await page.wait_for_selector(
+                                        '[data-testid="SideNav_AccountSwitcher_Button"]',
+                                        timeout=3000
+                                    )
+                                    return True, "Conectado e LOGADO no X! 🎉"
+                                except:
+                                    return True, "Conectado ao X, mas NÃO logado. Por favor, faça login!"
+                            return True, f"Conectado! (mas não está no X - URL: {url})"
+                        return True, "Conectado ao Chromium!"
                     except Exception as e:
                         return False, str(e)
                     finally:
                         await pw.stop()
-                
+
                 try:
                     success, msg = asyncio.run(test_connection())
                     if success:
-                        st.success(f"✅ {msg} Pode iniciar a coleta.")
+                        st.success(f"✅ {msg}")
                         st.session_state['chrome_connected'] = True
                     else:
                         st.error(f"❌ Não conectou: {msg}")
-                        st.info("Execute ./start_chrome.sh no Terminal primeiro!")
+                        st.info("Certifique-se de que o Chromium está rodando!")
                 except Exception as e:
                     st.error(f"❌ Erro: {e}")
-                    st.info("Execute ./start_chrome.sh no Terminal primeiro!")
-    
+
     with col2:
-        if st.button("🔄 Verificar Status", use_container_width=True):
-            import subprocess
-            result = subprocess.run(["lsof", "-i", ":9222"], capture_output=True, text=True)
-            if result.stdout:
-                st.success("✅ Chrome rodando na porta 9222")
-            else:
-                st.error("❌ Chrome NÃO está na porta 9222. Execute ./start_chrome.sh")
-    
+        if st.button("📋 Ver Logs do Chromium", use_container_width=True):
+            logs = get_chrome_log()
+            with st.expander("📋 Logs do Chromium", expanded=True):
+                st.code(logs, language="text")
+
     st.markdown("---")
     
     # Botões de coleta
