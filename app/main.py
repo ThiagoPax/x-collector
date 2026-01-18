@@ -237,72 +237,19 @@ if page == "📥 Coleta Manual":
     
     st.markdown("---")
 
-    # Gerenciamento do Chrome
-    st.subheader("🌐 Gerenciamento do Chromium")
-
-    # Status do Chrome
-    chrome_running, chrome_status = get_chrome_status()
-
-    if chrome_running:
-        st.success(f"✅ Chromium está rodando - {chrome_status}")
-    else:
-        st.warning(f"⚠️ Chromium não está rodando - {chrome_status}")
+    # Login via Cookies
+    st.subheader("🍪 Login no X via Cookies")
 
     st.info("""
     **💡 Como funciona:**
-    1. **FAÇA LOGIN NO X:** Importe seus cookies do X usando a seção "🍪 Login no X via Cookies" abaixo
-    2. Clique em **"🚀 Iniciar Chromium"** para iniciar o navegador em modo headless
-    3. O Chromium iniciará em background e carregará seus cookies automaticamente
-    4. Clique em **"🔗 Conectar ao Chromium"** para verificar a conexão
-    5. Agora você pode iniciar a coleta de dados!
+    1. **FAÇA LOGIN NO X:** Importe seus cookies do X usando o formulário abaixo
+    2. Os cookies ficam salvos permanentemente no servidor
+    3. Quando você clicar em "🚀 Iniciar Coleta", o navegador headless será iniciado automaticamente
+    4. Os cookies serão carregados automaticamente no navegador
+    5. A coleta de posts será realizada!
 
-    **⚠️ Nota:** O login só precisa ser feito uma vez. Os cookies ficam salvos permanentemente.
+    **⚠️ Nota:** Você só precisa importar os cookies uma vez!
     """)
-
-    # Botões de controle do Chrome
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        if st.button("🚀 Iniciar Chromium", use_container_width=True, type="primary", disabled=chrome_running):
-            with st.spinner("Iniciando Chromium..."):
-                success, msg = start_chrome()
-                if success:
-                    st.success(msg)
-                    st.rerun()
-                else:
-                    st.error(msg)
-                    # Mostrar log se houver erro
-                    with st.expander("📋 Ver log do Chromium"):
-                        st.code(get_chrome_log(), language="text")
-
-    with col2:
-        if st.button("🔄 Reiniciar Chromium", use_container_width=True, disabled=not chrome_running):
-            with st.spinner("Reiniciando Chromium..."):
-                success, msg = restart_chrome()
-                if success:
-                    st.success(msg)
-                    st.rerun()
-                else:
-                    st.error(msg)
-
-    with col3:
-        if st.button("🛑 Parar Chromium", use_container_width=True, disabled=not chrome_running):
-            with st.spinner("Parando Chromium..."):
-                success, msg = stop_chrome()
-                if success:
-                    st.success(msg)
-                    st.rerun()
-                else:
-                    st.error(msg)
-
-    with col4:
-        if st.button("🔍 Atualizar Status", use_container_width=True):
-            st.rerun()
-
-    st.markdown("---")
-
-    # Login via Cookies
-    st.subheader("🍪 Login no X via Cookies")
 
     # Verificar status dos cookies
     from core.collector import XCollector
@@ -433,93 +380,6 @@ if page == "📥 Coleta Manual":
 
     st.markdown("---")
 
-    # Conexão e teste
-    st.subheader("🔐 Conectar ao Chromium")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("🔗 Conectar ao Chromium", use_container_width=True, type="primary", disabled=not chrome_running):
-            with st.spinner("Conectando ao Chromium..."):
-                async def test_connection():
-                    from playwright.async_api import async_playwright
-                    pw = await async_playwright().start()
-                    try:
-                        browser = await pw.chromium.connect_over_cdp(
-                            "http://127.0.0.1:9222",
-                            timeout=5000,
-                        )
-                        contexts = browser.contexts
-                        if contexts and contexts[0].pages:
-                            page = contexts[0].pages[0]
-                            # Verificar se está no X
-                            url = page.url
-                            if "x.com" in url or "twitter.com" in url:
-                                # Tentar verificar se está logado
-                                try:
-                                    await page.wait_for_selector(
-                                        '[data-testid="SideNav_AccountSwitcher_Button"]',
-                                        timeout=3000
-                                    )
-                                    return True, "Conectado e LOGADO no X! 🎉"
-                                except:
-                                    return True, "Conectado ao X, mas NÃO logado. Por favor, faça login!"
-                            return True, f"Conectado! (mas não está no X - URL: {url})"
-                        return True, "Conectado ao Chromium!"
-                    except Exception as e:
-                        return False, str(e)
-                    finally:
-                        await pw.stop()
-
-                try:
-                    success, msg = asyncio.run(test_connection())
-                    if success:
-                        st.success(f"✅ {msg}")
-                        st.session_state['chrome_connected'] = True
-                    else:
-                        st.error(f"❌ Não conectou: {msg}")
-                        st.info("Certifique-se de que o Chromium está rodando!")
-                except Exception as e:
-                    st.error(f"❌ Erro: {e}")
-
-    with col2:
-        if st.button("📋 Ver Logs do Chromium", use_container_width=True):
-            logs = get_chrome_log()
-            with st.expander("📋 Logs do Chromium", expanded=True):
-                st.code(logs, language="text")
-
-    # Informação adicional sobre login
-    with st.expander("ℹ️ Outras opções de login (avançado)"):
-        st.markdown("""
-        ### ✅ Recomendado: Importar Cookies (seção acima)
-
-        Use a seção **"🍪 Login no X via Cookies"** acima para importar cookies do seu navegador.
-        Esta é a forma mais simples e segura de fazer login!
-
-        ---
-
-        ### Opção 2: Copiar perfil existente
-
-        Se você já tem um Chromium/Chrome logado em outro lugar:
-
-        1. Copie a pasta de perfil do Chrome
-        2. Cole em `/app/browser_data/chrome-profile`
-        3. Reinicie o Chromium pelo botão acima
-
-        ### Opção 3: VNC (não recomendado)
-
-        Apenas se as outras opções não funcionarem:
-
-        1. Configure VNC para acessar o display :99
-        2. Conecte-se e faça login manualmente no X
-        3. Feche o VNC - o Chromium continuará rodando
-
-        **⚠️ IMPORTANTE:** Após o login, os cookies ficam salvos permanentemente.
-        Você só precisa fazer isso uma vez!
-        """)
-
-    st.markdown("---")
-    
     # Botões de coleta
     col1, col2 = st.columns([3, 1])
     
@@ -557,53 +417,40 @@ if page == "📥 Coleta Manual":
             )
             
             async def run_collection():
-                from playwright.async_api import async_playwright
-                
-                playwright = await async_playwright().start()
-                
-                try:
-                    # Conectar ao Chrome do usuário via CDP
-                    add_log("🔗 Conectando ao Chrome...")
-                    browser = await playwright.chromium.connect_over_cdp(
-                        "http://127.0.0.1:9222",
-                        timeout=10000,
-                    )
-                    
-                    contexts = browser.contexts
-                    if not contexts:
-                        raise Exception("Nenhum contexto encontrado no Chrome")
-                    
-                    context = contexts[0]
-                    
-                    # Criar nova aba para a coleta
-                    page = await context.new_page()
-                    add_log("✅ Conectado ao Chrome!")
-                    
-                    # Criar coletor manual
-                    collector = XCollector(headless=False)
-                    collector._playwright = playwright
-                    collector.browser = browser
-                    collector.context = context
-                    collector.page = page
-                    
-                    def progress_callback(count: int, msg: str):
+                # Verificar se tem cookies antes de começar
+                temp_collector = XCollector(headless=True)
+                if not temp_collector.has_saved_cookies():
+                    raise Exception("❌ Você precisa importar seus cookies do X antes de coletar posts!")
+
+                # Criar coletor headless
+                add_log("🚀 Iniciando navegador headless...")
+                async with XCollector(headless=True) as collector:
+                    add_log("✅ Navegador iniciado!")
+
+                    # Verificar se está logado
+                    add_log("🔍 Verificando login...")
+                    if not await collector.is_logged_in():
+                        raise Exception("❌ Não está logado no X. Seus cookies podem estar expirados. Importe novos cookies!")
+
+                    add_log("✅ Login confirmado!")
+
+                    def progress_callback(msg: str):
                         add_log(msg)
-                    
-                    result = await collector.collect(
-                        query_or_url=input_value.strip(),
+
+                    # Atualizar params com query ou URL
+                    if is_url:
+                        params.url = input_value.strip()
+                    else:
+                        params.query = input_value.strip()
+
+                    # Coletar posts
+                    add_log("📥 Iniciando coleta...")
+                    result = await collector.collect_posts(
                         params=params,
-                        is_url=is_url,
                         progress_callback=progress_callback,
                     )
-                    
-                    # Fechar aba que criamos, mas não o browser
-                    await page.close()
-                    
+
                     return result
-                    
-                except Exception as e:
-                    await playwright.stop()
-                    raise Exception(f"Não foi possível conectar ao Chrome. Certifique-se de iniciá-lo com --remote-debugging-port=9222. Erro: {e}")
             
             with st.spinner("🔄 Coletando posts... Aguarde..."):
                 try:
