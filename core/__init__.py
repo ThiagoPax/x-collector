@@ -15,6 +15,14 @@ from core.models import (
 from core.collector import XCollector, quick_collect, CollectorConfig
 from core.extractor import PostExtractor
 from core.url_builder import URLBuilder, build_example_queries
+from core.chrome_manager import (
+    is_chrome_running,
+    get_chrome_status,
+    start_chrome,
+    stop_chrome,
+    restart_chrome,
+    get_chrome_log,
+)
 
 __all__ = [
     "Post",
@@ -34,4 +42,10 @@ __all__ = [
     "PostExtractor",
     "URLBuilder",
     "build_example_queries",
+    "is_chrome_running",
+    "get_chrome_status",
+    "start_chrome",
+    "stop_chrome",
+    "restart_chrome",
+    "get_chrome_log",
 ]
