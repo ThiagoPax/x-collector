@@ -11,6 +11,7 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from core.models import Post, CollectionParams, CollectionResult
 from core.extractor import PostExtractor
 from core.url_builder import URLBuilder
+from core.cookie_manager import CookieManager
 
 
 def utc_now() -> datetime:
@@ -84,7 +85,7 @@ def get_chrome_user_data_dir() -> str:
 
 class XCollector:
     """Coletor de posts do X com Playwright - Modo Elon Musk."""
-    
+
     def __init__(self, headless: bool = False):
         self.headless = headless
         self.browser: Optional[Browser] = None
@@ -92,6 +93,7 @@ class XCollector:
         self.page: Optional[Page] = None
         self._playwright = None
         self._chrome_process = None
+        self.cookie_manager = CookieManager(CollectorConfig.BROWSER_DATA_DIR)
     
     async def __aenter__(self):
         await self.start()
@@ -121,8 +123,14 @@ class XCollector:
             else:
                 self.context = await self.browser.new_context()
                 self.page = await self.context.new_page()
-            
+
             print("✅ Conectado ao Chrome existente!")
+
+            # Carregar cookies salvos automaticamente
+            if self.cookie_manager.has_cookies():
+                print("🍪 Carregando cookies salvos...")
+                await self.load_cookies_to_context()
+
             return
             
         except Exception as e:
@@ -193,9 +201,14 @@ class XCollector:
             else:
                 self.context = await self.browser.new_context()
                 self.page = await self.context.new_page()
-            
+
             print("✅ Chrome iniciado com sucesso!")
-            
+
+            # Carregar cookies salvos automaticamente
+            if self.cookie_manager.has_cookies():
+                print("🍪 Carregando cookies salvos...")
+                await self.load_cookies_to_context()
+
         except Exception as e:
             print(f"❌ Erro ao iniciar Chrome: {e}")
             # Fallback para Playwright puro
@@ -205,7 +218,7 @@ class XCollector:
         """Fallback: inicia browser Playwright normal."""
         browser_data_path = Path(CollectorConfig.BROWSER_DATA_DIR)
         browser_data_path.mkdir(parents=True, exist_ok=True)
-        
+
         self.context = await self._playwright.chromium.launch_persistent_context(
             user_data_dir=str(browser_data_path),
             headless=self.headless,
@@ -213,11 +226,16 @@ class XCollector:
             locale="pt-BR",
             timezone_id="America/Sao_Paulo",
         )
-        
+
         if self.context.pages:
             self.page = self.context.pages[0]
         else:
             self.page = await self.context.new_page()
+
+        # Carregar cookies salvos automaticamente
+        if self.cookie_manager.has_cookies():
+            print("🍪 Carregando cookies salvos...")
+            await self.load_cookies_to_context()
     
     async def stop(self):
         """Para o browser."""
@@ -331,9 +349,53 @@ class XCollector:
             print(f"❌ Erro: {e}")
             return False
     
-    async def import_chrome_cookies(self) -> bool:
-        """Placeholder - não mais necessário com nova abordagem."""
-        return False
+    async def import_cookies_from_json(self, cookies_json: str) -> tuple[bool, str]:
+        """
+        Importa cookies a partir de um JSON.
+
+        Args:
+            cookies_json: String JSON com cookies exportados do navegador
+
+        Returns:
+            Tupla (sucesso, mensagem)
+        """
+        return self.cookie_manager.import_cookies(cookies_json)
+
+    async def load_cookies_to_context(self) -> bool:
+        """
+        Carrega cookies salvos no contexto do Playwright.
+
+        Returns:
+            True se cookies foram carregados com sucesso
+        """
+        if not self.context:
+            print("⚠️ Contexto do browser não iniciado")
+            return False
+
+        cookies = self.cookie_manager.load_cookies()
+        if not cookies:
+            print("⚠️ Nenhum cookie salvo encontrado")
+            return False
+
+        try:
+            await self.context.add_cookies(cookies)
+            print(f"✅ {len(cookies)} cookies carregados no contexto")
+            return True
+        except Exception as e:
+            print(f"❌ Erro ao carregar cookies no contexto: {e}")
+            return False
+
+    def has_saved_cookies(self) -> bool:
+        """Verifica se existem cookies salvos."""
+        return self.cookie_manager.has_cookies()
+
+    def get_cookies_info(self):
+        """Retorna informações sobre os cookies salvos."""
+        return self.cookie_manager.get_cookies_info()
+
+    def delete_saved_cookies(self) -> tuple[bool, str]:
+        """Remove os cookies salvos."""
+        return self.cookie_manager.delete_cookies()
     
     async def check_for_blocks(self) -> tuple[bool, str]:
         """

@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import asyncio
+import time
 import streamlit as st
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -249,16 +250,13 @@ if page == "📥 Coleta Manual":
 
     st.info("""
     **💡 Como funciona:**
-    1. Clique em **"🚀 Iniciar Chromium"** para iniciar o navegador em modo headless
-    2. O Chromium iniciará em background (sem interface visível)
-    3. **PARA FAZER LOGIN NO X (primeira vez):**
-       - Use VNC ou outra ferramenta de acesso remoto ao display :99
-       - Ou: Configure cookies/sessão do X manualmente
-       - Ou: Use o Chromium já logado copiando o perfil de outro lugar
-    4. Depois que estiver logado, clique em **"Conectar ao Chromium"**
+    1. **FAÇA LOGIN NO X:** Importe seus cookies do X usando a seção "🍪 Login no X via Cookies" abaixo
+    2. Clique em **"🚀 Iniciar Chromium"** para iniciar o navegador em modo headless
+    3. O Chromium iniciará em background e carregará seus cookies automaticamente
+    4. Clique em **"🔗 Conectar ao Chromium"** para verificar a conexão
     5. Agora você pode iniciar a coleta de dados!
 
-    **⚠️ Nota:** O login só precisa ser feito uma vez. Os cookies ficam salvos em `/app/browser_data/chrome-profile`
+    **⚠️ Nota:** O login só precisa ser feito uma vez. Os cookies ficam salvos permanentemente.
     """)
 
     # Botões de controle do Chrome
@@ -300,6 +298,138 @@ if page == "📥 Coleta Manual":
     with col4:
         if st.button("🔍 Atualizar Status", use_container_width=True):
             st.rerun()
+
+    st.markdown("---")
+
+    # Login via Cookies
+    st.subheader("🍪 Login no X via Cookies")
+
+    # Verificar status dos cookies
+    from core.collector import XCollector
+    collector = XCollector(headless=True)
+    cookies_info = collector.get_cookies_info()
+
+    if cookies_info['exists']:
+        from datetime import datetime
+        imported_at = cookies_info.get('imported_at', 'desconhecido')
+        try:
+            # Formatar a data
+            if imported_at != 'desconhecido':
+                dt = datetime.fromisoformat(imported_at)
+                imported_at_str = dt.strftime("%d/%m/%Y às %H:%M:%S")
+            else:
+                imported_at_str = 'desconhecido'
+        except:
+            imported_at_str = imported_at
+
+        st.success(f"✅ Cookies importados: **{cookies_info['count']} cookies** (em {imported_at_str})")
+
+        col1, col2, col3 = st.columns([2, 1, 1])
+
+        with col2:
+            if st.button("🔍 Verificar Login", use_container_width=True):
+                with st.spinner("Verificando sessão no X..."):
+                    async def check_login():
+                        temp_collector = XCollector(headless=True)
+                        try:
+                            await temp_collector.start()
+                            is_logged = await temp_collector.is_logged_in()
+                            await temp_collector.stop()
+                            return is_logged
+                        except Exception as e:
+                            return None
+
+                    try:
+                        is_logged = asyncio.run(check_login())
+                        if is_logged is True:
+                            st.success("🎉 **Você está logado no X!**")
+                        elif is_logged is False:
+                            st.error("❌ **Sessão expirada.** Por favor, importe novos cookies.")
+                        else:
+                            st.warning("⚠️ Não foi possível verificar o login. Tente conectar ao Chromium.")
+                    except Exception as e:
+                        st.error(f"❌ Erro ao verificar login: {e}")
+
+        with col3:
+            if st.button("🗑️ Deletar", use_container_width=True):
+                success, msg = collector.delete_saved_cookies()
+                if success:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
+    else:
+        st.info("ℹ️ Nenhum cookie importado. Use o formulário abaixo para importar seus cookies do X.")
+
+    # Formulário de importação
+    with st.expander("📥 Importar Cookies do X", expanded=not cookies_info['exists']):
+        st.markdown("""
+        **Como exportar cookies do X (Twitter):**
+
+        1. Acesse https://x.com no seu navegador (já logado)
+        2. Instale uma extensão de exportação de cookies:
+           - [EditThisCookie](https://chrome.google.com/webstore/detail/editthiscookie/fngmhnnpilhplaeedifhccceomclgfbg) (Chrome/Edge)
+           - [Cookie-Editor](https://cookie-editor.cgagnier.ca/) (Chrome/Firefox/Edge)
+        3. Clique na extensão e exporte todos os cookies do domínio **x.com**
+        4. Copie o JSON exportado
+        5. Cole no campo abaixo e clique em "💾 Importar Cookies"
+
+        **⚠️ Importante:**
+        - Exporte cookies apenas do domínio **x.com** ou **.twitter.com**
+        - Os cookies devem estar em formato JSON (lista de objetos)
+        - Mantenha seus cookies em segurança (não compartilhe!)
+        """)
+
+        cookies_json = st.text_area(
+            "Cole o JSON dos cookies aqui:",
+            height=200,
+            placeholder='[{"name":"auth_token","value":"...","domain":".x.com",...}, ...]',
+            help="Cole o JSON exportado pela extensão de cookies"
+        )
+
+        if st.button("💾 Importar Cookies", use_container_width=True, type="primary"):
+            if not cookies_json.strip():
+                st.error("❌ Por favor, cole o JSON dos cookies antes de importar")
+            else:
+                with st.spinner("Importando e validando cookies..."):
+                    async def import_and_validate_cookies():
+                        collector_temp = XCollector(headless=True)
+
+                        # 1. Importar cookies
+                        success, msg = await collector_temp.import_cookies_from_json(cookies_json)
+                        if not success:
+                            return False, msg, False
+
+                        # 2. Validar sessão
+                        try:
+                            await collector_temp.start()
+                            is_logged = await collector_temp.is_logged_in()
+                            await collector_temp.stop()
+
+                            return True, msg, is_logged
+                        except Exception as e:
+                            return True, msg, None  # Cookies importados mas validação falhou
+
+                    try:
+                        success, msg, logged_in = asyncio.run(import_and_validate_cookies())
+
+                        if success:
+                            st.success(msg)
+
+                            if logged_in is True:
+                                st.success("🎉 **Login validado com sucesso!** Você está logado no X.")
+                            elif logged_in is False:
+                                st.warning("⚠️ Cookies importados, mas a sessão não está ativa. Os cookies podem estar expirados. Tente exportar novos cookies.")
+                            else:
+                                st.info("✅ Cookies importados! Conecte ao Chromium para verificar o login.")
+
+                            # Aguardar 2 segundos e recarregar
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                    except Exception as e:
+                        st.error(f"❌ Erro ao importar cookies: {e}")
 
     st.markdown("---")
 
@@ -359,15 +489,14 @@ if page == "📥 Coleta Manual":
                 st.code(logs, language="text")
 
     # Informação adicional sobre login
-    with st.expander("ℹ️ Como fazer login no X (instruções detalhadas)"):
+    with st.expander("ℹ️ Outras opções de login (avançado)"):
         st.markdown("""
-        ### Opção 1: Usar VNC (Recomendado para primeira vez)
+        ### ✅ Recomendado: Importar Cookies (seção acima)
 
-        1. Instale um cliente VNC no seu computador (como RealVNC Viewer)
-        2. Conecte-se ao servidor no display :99
-        3. Uma janela com o Chromium aparecerá
-        4. Navegue para https://x.com e faça login normalmente
-        5. Feche o VNC - o Chromium continuará rodando em background
+        Use a seção **"🍪 Login no X via Cookies"** acima para importar cookies do seu navegador.
+        Esta é a forma mais simples e segura de fazer login!
+
+        ---
 
         ### Opção 2: Copiar perfil existente
 
@@ -377,11 +506,13 @@ if page == "📥 Coleta Manual":
         2. Cole em `/app/browser_data/chrome-profile`
         3. Reinicie o Chromium pelo botão acima
 
-        ### Opção 3: Configuração manual de cookies
+        ### Opção 3: VNC (não recomendado)
 
-        Para usuários avançados:
-        1. Exporte cookies do X.com de outro navegador
-        2. Importe-os no perfil em `/app/browser_data/chrome-profile`
+        Apenas se as outras opções não funcionarem:
+
+        1. Configure VNC para acessar o display :99
+        2. Conecte-se e faça login manualmente no X
+        3. Feche o VNC - o Chromium continuará rodando
 
         **⚠️ IMPORTANTE:** Após o login, os cookies ficam salvos permanentemente.
         Você só precisa fazer isso uma vez!
