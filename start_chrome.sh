@@ -8,11 +8,11 @@ echo "🚀 Preparando Chromium em modo debug..."
 echo ""
 
 # Encontrar executável do Chromium do Playwright
-CHROME_EXEC="/root/.cache/ms-playwright/chromium-1194/chrome-linux/chrome"
+# Procurar automaticamente a versão mais recente instalada
+CHROME_EXEC=$(find /root/.cache/ms-playwright -path "*/chromium-*/chrome-linux/chrome" -type f 2>/dev/null | sort -V | tail -1)
 
-# Fallback: tentar encontrar automaticamente
-if [ ! -f "$CHROME_EXEC" ]; then
-    echo "🔍 Procurando Chromium do Playwright..."
+if [ -z "$CHROME_EXEC" ] || [ ! -f "$CHROME_EXEC" ]; then
+    echo "🔍 Chromium não encontrado. Procurando em outras localizações..."
     CHROME_EXEC=$(find /root/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | grep "chrome-linux/chrome" | head -1)
 fi
 

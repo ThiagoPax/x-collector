@@ -15,7 +15,39 @@ Coletor automatizado de posts do X (Twitter) com análise inteligente usando Ope
 
 ---
 
-## 🚀 Instalação Rápida (macOS)
+## 🌐 Uso via Interface Web (Recomendado)
+
+**Acesse diretamente:** http://92.246.128.221/
+
+### Como usar:
+
+1. **Inicie o Chromium**
+   - Clique em "🚀 Iniciar Chromium" na interface
+   - Aguarde confirmação de sucesso
+
+2. **Faça login no X (primeira vez apenas)**
+   - Use VNC para acessar o display :99
+   - Ou copie perfil do Chrome já logado
+   - **Os cookies ficam salvos permanentemente**
+
+3. **Conecte ao Chromium**
+   - Clique em "🔗 Conectar ao Chromium"
+   - Confirme que está logado no X
+
+4. **Colete dados**
+   - Configure a pesquisa ou URL
+   - Escolha filtros e formatos
+   - Clique em "🚀 Iniciar Coleta"
+   - Baixe os arquivos gerados
+
+### Configuração de Email (já configurado):
+- ✅ Email: ts_souza@aol.com
+- ✅ Servidor: smtp.aol.com
+- ✅ Pronto para enviar relatórios
+
+---
+
+## 🚀 Instalação Local (macOS)
 
 ```bash
 cd ~/Desktop
